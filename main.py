@@ -2,15 +2,25 @@ from keras.models import *
 from keras.layers import *
 from keras.optimizers import *
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler
+from keras.preprocessing.image import ImageDataGenerator
 from keras import backend as keras
 #from keras.utils import plot_model
 
 import skimage.io as io
-from keras.preprocessing.image import ImageDataGenerator
 import numpy as np
 import pickle
 
+
 def unet(input_size = (512,512,1)):
+    """
+    This function impliments u-net architecture using keras functional API
+    
+    Attributes:
+        input_size (tuple): size of the input
+        
+    Return:
+        model : an object of class Model
+    """
     inputs = Input(input_size)
     conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(inputs)
     conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv1)
@@ -59,22 +69,36 @@ def unet(input_size = (512,512,1)):
 
     return model
  
-def train_g(img_dir, msk_dir,gm = True):
-    img_a = []
-    msk_a = []
-    for fn in os.listdir(img_dir):
-        img = io.imread(img_dir+fn,as_gray = gm)
-        img = np.reshape(img,img.shape + (1,)) if gm else img
-        img_a.append(img)
-    img_a = np.array(img_a)
-    for fn in os.listdir(msk_dir):
-        msk = io.imread(msk_dir+fn,as_gray = gm)
-        msk = np.reshape(msk,msk.shape + (1,)) if gm else msk
-        msk_a.append(msk)
-    msk_a = np.array(msk_a)
-    return img_a,msk_a
+#def train_g(img_dir, msk_dir,gm = True):
+    #img_a = []
+    #msk_a = []
+    #for fn in os.listdir(img_dir):
+        #img = io.imread(img_dir+fn,as_gray = gm)
+        #img = np.reshape(img,img.shape + (1,)) if gm else img
+        #img_a.append(img)
+    #img_a = np.array(img_a)
+    #for fn in os.listdir(msk_dir):
+        #msk = io.imread(msk_dir+fn,as_gray = gm)
+        #msk = np.reshape(msk,msk.shape + (1,)) if gm else msk
+        #msk_a.append(msk)
+    #msk_a = np.array(msk_a)
+    #return img_a,msk_a
 
-def train_generator(batch_size,train_dir,img_dir,msk_dir,cm ="grayscale",target_size=(512, 512),seed = 1):
+def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),seed = 1):
+    """
+    Used for generating and passing images and lables to the fit_generator for training the model
+    
+    Attributes:
+        batch_size (int): size of the batches of data
+        train_dir (str): path to the directory containing images and labels
+        img_dir (str): name of the folder containing images
+        msk_dir (str): name of the folde conatining masks/labels
+        target_size (tuple):taget size of the images
+        seed (int): optional random seed for shuffling and transformations, should be kept same for lable and image
+        
+    Return:
+        (img,mask) : yields a tuple containing image(numpy array) and label(numpy array)
+    """
     data_gen_args = dict(featurewise_center=True,
                      featurewise_std_normalization=True,
                      rotation_range=90,
@@ -83,8 +107,10 @@ def train_generator(batch_size,train_dir,img_dir,msk_dir,cm ="grayscale",target_
                      zoom_range=0.2)
     image_datagen = ImageDataGenerator(**data_gen_args)
     mask_datagen = ImageDataGenerator(**data_gen_args)
-    image_generator = image_datagen.flow_from_directory(train_dir,classes=[img_dir],class_mode=None,color_mode = cm,batch_size = batch_size,target_size=target_size,seed = seed)
-    mask_generator = mask_datagen.flow_from_directory(train_dir,classes=[msk_dir],class_mode = None,color_mode = cm,batch_size = batch_size,target_size=target_size,seed = seed)
+    image_generator = image_datagen.flow_from_directory(train_dir,classes=[img_dir],class_mode=None,
+                                                        color_mode='grayscale',batch_size=batch_size,target_size=target_size,seed=seed)
+    mask_generator = mask_datagen.flow_from_directory(train_dir,classes=[msk_dir],class_mode=None,
+                                                      color_mode='grayscale',batch_size=batch_size,target_size=target_size,seed=seed)
     train_generator = zip(image_generator, mask_generator)
     for (img,mask) in train_generator:
         img = img / 255
@@ -93,9 +119,19 @@ def train_generator(batch_size,train_dir,img_dir,msk_dir,cm ="grayscale",target_
         mask[mask <= 0.5] = 0
         yield (img,mask)
 
-def test_generator(num_image,test_dir,cm='grayscale'):
+def test_generator(num_image,test_dir):
+    """
+    Used for generating and passing test images and lables to the predict_generator
+    
+    Attributes:
+        num_image (int): number of images in test folder, NOTE : images in test folder must be numbered from 1 to the num_image, both included
+        test_dir (str): path to the directory containing test images
+        
+    Return:
+        img : yields image(numpy array)
+    """
     for i in range(1,num_image+1):
-        img = io.imread(os.path.join(test_dir,"%d.jpg"%i),as_gray = cm)
+        img = io.imread(os.path.join(test_dir,"%d.jpg"%i),as_gray=True)
         img = img / 255
         img = np.reshape(img,(1,)+img.shape+(1,))
         yield img
