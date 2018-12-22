@@ -11,64 +11,139 @@ import numpy as np
 import pickle
 
 
-def unet(input_size = (512,512,1)):
+def unet(input_shape = (512,512,1)):
     """
     This function impliments u-net architecture using keras functional API
     
     Attributes:
-        input_size (tuple): size of the input
+        input_shape (tuple): size of the input
         
     Return:
         model : an object of class Model
     """
-    inputs = Input(input_size)
-    conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(inputs)
-    conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv1)
-    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-    conv2 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(pool1)
-    conv2 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv2)
-    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-    conv3 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(pool2)
-    conv3 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv3)
-    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-    conv4 = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(pool3)
-    conv4 = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv4)
-    drop4 = Dropout(0.5)(conv4)
-    pool4 = MaxPooling2D(pool_size=(2, 2))(drop4)
+    inputs = Input(input_shape)
+    
+    conv1 = Conv2D(64, 3, padding='same', strides=(1,1), activation='relu')(inputs)
+    conv1 = Conv2D(64, 3, padding='same', strides=(1,1), activation='relu')(conv1)
+    
+    conv2 = Conv2D(128, 3, padding='same', strides=(2,2), activation='relu')(conv1)
+    conv2 = Conv2D(128, 3, padding='same', strides=(1,1), activation='relu')(conv2)
+    
+    conv3 = Conv2D(256, 3, padding='same', strides=(2,2), activation='relu')(conv2)
+    conv3 = Conv2D(256, 3, padding='same', strides=(1,1), activation='relu')(conv3)
+    
+    conv4 = Conv2D(512, 3, padding='same', strides=(2,2), activation='relu')(conv3)
+    conv4 = Conv2D(512, 3, padding='same', strides=(1,1), activation='relu')(conv4)
+    
+    conv5 = Conv2D(1024, 3, padding='same', strides=(2,2), activation='relu')(conv4)
+    conv5 = Conv2D(1024, 3, padding='same', strides=(1,1), activation='relu')(conv5)
+    
+    up6 = UpSampling2D(size=(2, 2))(conv5)
+    merge6 = concatenate([up6, conv4], axis=3)
+    conv6 = Conv2D(512, 3, padding='same', strides=(1,1), activation='relu')(merge6)
+    conv6 = Conv2D(512, 3, padding='same', strides=(1,1), activation='relu')(conv6)
+    
+    up7 = UpSampling2D(size=(2, 2))(conv6)
+    merge7 = concatenate([up7, conv3], axis=3)
+    conv7 = Conv2D(256, 3, padding='same', strides=(1,1), activation='relu')(merge7)
+    conv7 = Conv2D(256, 3, padding='same', strides=(1,1), activation='relu')(conv7)
+    
+    up8 = UpSampling2D(size=(2, 2))(conv7)
+    merge8 = concatenate([up8, conv2], axis=3)
+    conv8 = Conv2D(128, 3, padding='same', strides=(1,1), activation='relu')(merge8)
+    conv8 = Conv2D(128, 3, padding='same', strides=(1,1), activation='relu')(conv8)
+    
+    up9 = UpSampling2D(size=(2, 2))(conv8)
+    merge9 = concatenate([up9, conv1], axis=3)
+    conv9 = Conv2D(64, 3, padding='same', strides=(1,1), activation='relu')(merge9)
+    conv9 = Conv2D(64, 3, padding='same', strides=(1,1), activation='relu')(conv9)
+    
+    out = Conv2D(1, 1, activation='sigmoid')(conv9)
 
-    conv5 = Conv2D(1024, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(pool4)
-    conv5 = Conv2D(1024, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv5)
-    drop5 = Dropout(0.5)(conv5)
-
-    up6 = Conv2DTranspose(512, (2,2),strides=(2,2), activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(drop5)
-    merge6 = concatenate([drop4,up6],axis=3)
-    conv6 = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge6)
-    conv6 = Conv2D(512, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv6)
-
-    up7 = Conv2DTranspose(256,(2,2),strides=(2,2), activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv6)
-    merge7 =concatenate([conv3,up7],axis=3)
-    conv7 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge7)
-    conv7 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv7)
-
-    up8 = Conv2DTranspose(128,(2,2),strides=(2,2), activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv7)
-    merge8 =concatenate([conv2,up8],axis=3)
-    conv8 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge8)
-    conv8 = Conv2D(128, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv8)
-
-    up9 = Conv2DTranspose(64,(2,2),strides=(2,2), activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv8)
-    merge9 =concatenate([conv1,up9],axis=3)
-    conv9 = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge9)
-    conv9 = Conv2D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv9)
-    conv9 = Conv2D(2, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv9)
-    conv10 = Conv2D(1, 1, activation = 'sigmoid')(conv9)
-
-    model = Model(input = inputs, output = conv10)
+    model = Model(input = inputs, output = out)
     model.compile(optimizer = Adam(lr = 1e-4), loss = 'binary_crossentropy', metrics = ['accuracy'])
     
     model.summary()
 
     return model
  
+
+def unet_res(input_shape = (512,512,1)):
+    """
+    This function impliments u-net architecture with residual blocks using keras functional API
+    
+    Attributes:
+        input_shape (tuple): size of the input
+        
+    Return:
+        model : an object of class Model
+    """
+    
+    inputs = Input(input_shape)
+    
+    conv1 = Conv2D(64, 3, padding='same', strides=(1,1), activation='relu')(inputs)
+    conv1 = Conv2D(64, 3, padding='same', strides=(1,1), activation='relu')(conv1)
+    shrt1 = Conv2D(64, 1, strides=(1,1))(inputs)
+    res1 = add([shrt1, conv1])
+    
+    conv2 = Conv2D(128, 3, padding='same', strides=(2,2), activation='relu')(res1)
+    conv2 = Conv2D(128, 3, padding='same', strides=(1,1), activation='relu')(conv2)
+    shrt2 = Conv2D(128, 1, strides=(2,2))(res1)
+    res2 = add([shrt2, conv2])
+    
+    conv3 = Conv2D(256, 3, padding='same', strides=(2,2), activation='relu')(res2)
+    conv3 = Conv2D(256, 3, padding='same', strides=(1,1), activation='relu')(conv3)
+    shrt3 = Conv2D(256, 1, strides=(2,2))(res2)
+    res3 = add([shrt3, conv3])
+    
+    conv4 = Conv2D(512, 3, padding='same', strides=(2,2), activation='relu')(res3)
+    conv4 = Conv2D(512, 3, padding='same', strides=(1,1), activation='relu')(conv4)
+    shrt4 = Conv2D(512, 1, strides=(2,2))(res3)
+    res4 = add([shrt4, conv4])
+    
+    conv5 = Conv2D(1024, 3, padding='same', strides=(2,2), activation='relu')(res4)
+    conv5 = Conv2D(1024, 3, padding='same', strides=(1,1), activation='relu')(conv5)
+    shrt5 = Conv2D(1024, 1, strides=(2,2))(res4)
+    res5 = add([shrt5, conv5])
+    
+    up6 = UpSampling2D(size=(2, 2))(res5)
+    merge6 = concatenate([up6, res4], axis=3)
+    conv6 = Conv2D(512, 3, padding='same', strides=(1,1), activation='relu')(merge6)
+    conv6 = Conv2D(512, 3, padding='same', strides=(1,1), activation='relu')(conv6)
+    shrt6 = Conv2D(512, 1, strides=(1,1))(merge6)
+    res6 = add([shrt6, conv6])
+    
+    up7 = UpSampling2D(size=(2, 2))(res6)
+    merge7 = concatenate([up7, res3], axis=3)
+    conv7 = Conv2D(256, 3, padding='same', strides=(1,1), activation='relu')(merge7)
+    conv7 = Conv2D(256, 3, padding='same', strides=(1,1), activation='relu')(conv7)
+    shrt7 = Conv2D(256, 1, strides=(1,1))(merge7)
+    res7 = add([shrt7, conv7])
+    
+    up8 = UpSampling2D(size=(2, 2))(res7)
+    merge8 = concatenate([up8, res2], axis=3)
+    conv8 = Conv2D(128, 3, padding='same', strides=(1,1), activation='relu')(merge8)
+    conv8 = Conv2D(128, 3, padding='same', strides=(1,1), activation='relu')(conv8)
+    shrt8 = Conv2D(128, 1, strides=(1,1))(merge8)
+    res8 = add([shrt8, conv8])
+    
+    up9 = UpSampling2D(size=(2, 2))(res8)
+    merge9 = concatenate([up9, res1], axis=3)
+    conv9 = Conv2D(64, 3, padding='same', strides=(1,1), activation='relu')(merge9)
+    conv9 = Conv2D(64, 3, padding='same', strides=(1,1), activation='relu')(conv9)
+    shrt9 = Conv2D(64, 1, strides=(1,1))(merge9)
+    res9 = add([shrt9, conv9])
+    
+    out = Conv2D(1, 1, activation='sigmoid')(res9)
+
+    model = Model(input = inputs, output = out)
+    model.compile(optimizer = Adam(lr = 1e-4), loss = 'binary_crossentropy', metrics = ['accuracy'])
+    
+    model.summary()
+
+    return model
+ 
+    
 #def train_g(img_dir, msk_dir,gm = True):
     #img_a = []
     #msk_a = []
@@ -138,12 +213,18 @@ def test_generator(num_image,test_dir):
     
 
 train_data = train_generator(2,'../data/train','images','labels')
-test_data = test_generator(49,'../data/test/images')
+#test_data = test_generator(49,'../data/test/images')
 
 model = unet()
-#model_checkpoint = ModelCheckpoint('road_det_20.hdf5', monitor='loss', save_best_only=True)
-#model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,callbacks=[model_checkpoint])
-model.load_weights('road_det_20.hdf5')
+model_checkpoint = ModelCheckpoint('unet_sftmx_20.hdf5', monitor='loss', save_best_only=True)
+model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,callbacks=[model_checkpoint])
+
+model = unet_res()
+model_checkpoint = ModelCheckpoint('unet_res_sftmx_20.hdf5', monitor='loss', save_best_only=True)
+model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,callbacks=[model_checkpoint])
+
+
+#model.load_weights('road_det_20.hdf5')
     
-results = model.predict_generator(test_data,49,verbose=1)
-pickle.dump(results,open('20_results.np','wb'))
+#results = model.predict_generator(test_data,49,verbose=1)
+#pickle.dump(results,open('20_results.np','wb'))
