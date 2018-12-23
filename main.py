@@ -10,6 +10,9 @@ import skimage.io as io
 import numpy as np
 import pickle
 
+import cv2
+import numpy as np
+
 
 def unet(input_shape = (512,512,1)):
     """
@@ -144,22 +147,7 @@ def unet_res(input_shape = (512,512,1)):
     return model
  
     
-#def train_g(img_dir, msk_dir,gm = True):
-    #img_a = []
-    #msk_a = []
-    #for fn in os.listdir(img_dir):
-        #img = io.imread(img_dir+fn,as_gray = gm)
-        #img = np.reshape(img,img.shape + (1,)) if gm else img
-        #img_a.append(img)
-    #img_a = np.array(img_a)
-    #for fn in os.listdir(msk_dir):
-        #msk = io.imread(msk_dir+fn,as_gray = gm)
-        #msk = np.reshape(msk,msk.shape + (1,)) if gm else msk
-        #msk_a.append(msk)
-    #msk_a = np.array(msk_a)
-    #return img_a,msk_a
-
-def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),seed = 1):
+def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),md='3d'seed = 1):
     """
     Used for generating and passing images and lables to the fit_generator for training the model
     
@@ -170,7 +158,7 @@ def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),
         msk_dir (str): name of the folde conatining masks/labels
         target_size (tuple):taget size of the images
         seed (int): optional random seed for shuffling and transformations, should be kept same for lable and image
-        
+        md (str): 1d or 3d, if used 3d two additional filters are appended to gray scale image, default is 3d
     Return:
         (img,mask) : yields a tuple containing image(numpy array) and label(numpy array)
     """
@@ -182,49 +170,91 @@ def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),
                      zoom_range=0.2)
     image_datagen = ImageDataGenerator(**data_gen_args)
     mask_datagen = ImageDataGenerator(**data_gen_args)
-    image_generator = image_datagen.flow_from_directory(train_dir,classes=[img_dir],class_mode=None,
+    if(md = '1d'):
+        image_generator = image_datagen.flow_from_directory(train_dir,classes=[img_dir],class_mode=None,
                                                         color_mode='grayscale',batch_size=batch_size,target_size=target_size,seed=seed)
-    mask_generator = mask_datagen.flow_from_directory(train_dir,classes=[msk_dir],class_mode=None,
-                                                      color_mode='grayscale',batch_size=batch_size,target_size=target_size,seed=seed)
-    train_generator = zip(image_generator, mask_generator)
-    for (img,mask) in train_generator:
-        img = img / 255
-        mask = mask / 255
-        mask[mask > 0.5] = 1
-        mask[mask <= 0.5] = 0
-        yield (img,mask)
-
-def test_generator(num_image,test_dir):
+        mask_generator = mask_datagen.flow_from_directory(train_dir,classes=[msk_dir],class_mode=None,
+                                                        color_mode='grayscale',batch_size=batch_size,target_size=target_size,seed=seed)
+        train_generator = zip(image_generator, mask_generator)
+        for (img,mask) in train_generator:
+            img = img / 255
+            mask = mask / 255
+            mask[mask > 0.5] = 1
+            mask[mask <= 0.5] = 0
+            yield (img,mask)
+    else:
+        image_generator = image_datagen.flow_from_directory(train_dir,classes=[img_dir],class_mode=None,
+                                                            batch_size=batch_size,target_size=target_size,seed=seed)
+        mask_generator = mask_datagen.flow_from_directory(train_dir,classes=[msk_dir],class_mode=None,
+                                                        color_mode='grayscale',batch_size=batch_size,target_size=target_size,seed=seed)
+        train_generator = zip(image_generator, mask_generator)
+        for (img,mask) in train_generator:
+            img = cv2.cvtColor(img[0], cv2.COLOR_BGR2GRAY).astype('uint8')
+            imgn = cv2.bitwise_not(img)
+            imgw = cv2.adaptiveThreshold(imgn, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 7)
+            img = np.dstack((img, imgn,imgw))
+            img = img.reshape((1,)+img.shape)
+            img = img / 255
+            mask = mask / 255
+            mask[mask > 0.5] = 1
+            mask[mask <= 0.5] = 0
+            yield (img,mask)
+            
+            
+def test_generator(num_image,test_dir,md='3d'):
     """
     Used for generating and passing test images and lables to the predict_generator
     
     Attributes:
         num_image (int): number of images in test folder, NOTE : images in test folder must be numbered from 1 to the num_image, both included
         test_dir (str): path to the directory containing test images
+        md (str): 1d or 3d, if used 3d two additional filters are appended to gray scale image, default is 3d
         
     Return:
         img : yields image(numpy array)
     """
-    for i in range(1,num_image+1):
-        img = io.imread(os.path.join(test_dir,"%d.jpg"%i),as_gray=True)
-        img = img / 255
-        img = np.reshape(img,(1,)+img.shape+(1,))
-        yield img
+    if(md = '1d'):
+        for i in range(1,num_image+1):
+            img = cv2.imread(os.path.join(test_dir,"%d.jpg"%i),0)
+            img = img / 255
+            img = np.reshape(img,(1,)+img.shape+(1,))
+            yield img
+    else:
+        for i in range(1,num_image+1):
+            img = cv2.imread(os.path.join(test_dir,"%d.jpg"%i),0)
+            imgn = cv2.bitwise_not(img)
+            imgw = cv2.adaptiveThreshold(imgn, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 7)
+            img = np.dstack((img, imgn,imgw))
+            img = img.reshape((1,)+img.shape)
+            img = img / 255
+            yield img
     
 
-train_data = train_generator(2,'../data/train','images','labels')
-#test_data = test_generator(49,'../data/test/images')
-
-model = unet()
-model_checkpoint = ModelCheckpoint('unet_sftmx_20.hdf5', monitor='loss', save_best_only=True)
-model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,callbacks=[model_checkpoint])
-
-model = unet_res()
-model_checkpoint = ModelCheckpoint('unet_res_sftmx_20.hdf5', monitor='loss', save_best_only=True)
-model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,callbacks=[model_checkpoint])
+#train_data = train_generator(1,'../data/train','images','labels')
+test_data = test_generator(49,'../data/test/images')
 
 
-#model.load_weights('road_det_20.hdf5')
-    
+#model = unet(input_shape = (512,512,3))
+##model_checkpoint = ModelCheckpoint('unet_20_3d.hdf5', monitor='loss', save_best_only=True)
+##model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,verbose=2,callbacks=[model_checkpoint])
+
+#model.load_weights('unet_20_3d.hdf5')    
+#results = model.predict_generator(test_data,49,verbose=1)
+#pickle.dump(results,open('unet_20_3d_results.np','wb'))
+
+
+
+model = unet_res(input_shape = (512,512,3))
+#model_checkpoint = ModelCheckpoint('unet_res_20_3d.hdf5', monitor='loss', save_best_only=True)
+#model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,verbose=2,callbacks=[model_checkpoint])
+
+model.load_weights('unet_res_20_3d.hdf5')    
+results = model.predict_generator(test_data,49,verbose=1)
+pickle.dump(results,open('unet_res_20_3d_results.np','wb'))
+
+
+
+
+#model.load_weights('road_det_20.hdf5')    
 #results = model.predict_generator(test_data,49,verbose=1)
 #pickle.dump(results,open('20_results.np','wb'))
