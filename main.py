@@ -147,7 +147,7 @@ def unet_res(input_shape = (512,512,1)):
     return model
  
     
-def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),md='3d'seed = 1):
+def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),md='3d',seed = 1):
     """
     Used for generating and passing images and lables to the fit_generator for training the model
     
@@ -171,7 +171,8 @@ def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),
                      zoom_range=0.2)
     image_datagen = ImageDataGenerator(**data_gen_args)
     mask_datagen = ImageDataGenerator(**data_gen_args)
-    if(md = '1d'):
+    
+    if(md == '1d'):
         image_generator = image_datagen.flow_from_directory(train_dir,classes=[img_dir],class_mode=None,
                                                         color_mode='grayscale',batch_size=batch_size,target_size=target_size,seed=seed)
         mask_generator = mask_datagen.flow_from_directory(train_dir,classes=[msk_dir],class_mode=None,
@@ -187,7 +188,7 @@ def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),
         image_generator = image_datagen.flow_from_directory(train_dir,classes=[img_dir],class_mode=None,
                                                             batch_size=batch_size,target_size=target_size,seed=seed)
         mask_generator = mask_datagen.flow_from_directory(train_dir,classes=[msk_dir],class_mode=None,
-                                                        color_mode='grayscale',batch_size=batch_size,target_size=target_size,seed=seed)
+                                                        batch_size=batch_size,target_size=target_size,seed=seed)
         train_generator = zip(image_generator, mask_generator)
         for (img,mask) in train_generator:
             img = cv2.cvtColor(img[0], cv2.COLOR_BGR2GRAY).astype('uint8')
@@ -196,6 +197,9 @@ def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),
             img = np.dstack((img, imgn,imgw))
             img = img.reshape((1,)+img.shape)
             img = img / 255
+            mask = cv2.cvtColor(mask[0], cv2.COLOR_BGR2GRAY).astype('uint8')
+            mask = np.dstack((mask, mask,mask))
+            mask = mask.reshape((1,)+mask.shape)
             mask = mask / 255
             mask[mask > 0.5] = 1
             mask[mask <= 0.5] = 0
@@ -214,7 +218,7 @@ def test_generator(num_image,test_dir,md='3d'):
     Return:
         img : yields image(numpy array)
     """
-    if(md = '1d'):
+    if(md == '1d'):
         for i in range(1,num_image+1):
             img = cv2.imread(os.path.join(test_dir,"%d.jpg"%i),0)
             img = img / 255
@@ -231,28 +235,51 @@ def test_generator(num_image,test_dir,md='3d'):
             yield img
     
 
-#train_data = train_generator(1,'../data/train','images','labels')
+train_data = train_generator(1,'../data/train','images','labels')
 test_data = test_generator(49,'../data/test/images')
 
 
-#model = unet(input_shape = (512,512,3))
-##model_checkpoint = ModelCheckpoint('unet_20_3d.hdf5', monitor='loss', save_best_only=True)
-##model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,verbose=2,callbacks=[model_checkpoint])
+model = unet(input_shape = (512,512,3))
+model_checkpoint = ModelCheckpoint('unet_20_3d_mdf.hdf5', monitor='loss', save_best_only=True)
+model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,verbose=2,callbacks=[model_checkpoint])
 
-#model.load_weights('unet_20_3d.hdf5')    
-#results = model.predict_generator(test_data,49,verbose=1)
-#pickle.dump(results,open('unet_20_3d_results.np','wb'))
+model.load_weights('unet_20_3d_mdf.hdf5')    
+results = model.predict_generator(test_data,49,verbose=1)
+pickle.dump(results,open('unet_20_3d_mdf_results.np','wb'))
 
 
 
 model = unet_res(input_shape = (512,512,3))
-#model_checkpoint = ModelCheckpoint('unet_res_20_3d.hdf5', monitor='loss', save_best_only=True)
-#model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,verbose=2,callbacks=[model_checkpoint])
+model_checkpoint = ModelCheckpoint('unet_res_20_3d_mdf.hdf5', monitor='loss', save_best_only=True)
+model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,verbose=2,callbacks=[model_checkpoint])
 
-model.load_weights('unet_res_20_3d.hdf5')    
+model.load_weights('unet_res_20_3d_mdf.hdf5')    
 results = model.predict_generator(test_data,49,verbose=1)
-pickle.dump(results,open('unet_res_20_3d_results.np','wb'))
+pickle.dump(results,open('unet_res_20_3d_mdf_results.np','wb'))
 
+
+
+
+train_data = train_generator(1,'../data/train','images','labels',md='1d')
+test_data = test_generator(49,'../data/test/images',md='1d')
+
+model = unet(input_shape = (512,512,1))
+model_checkpoint = ModelCheckpoint('unet_20_mdf.hdf5', monitor='loss', save_best_only=True)
+model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,verbose=2,callbacks=[model_checkpoint])
+
+model.load_weights('unet_20_mdf.hdf5')    
+results = model.predict_generator(test_data,49,verbose=1)
+pickle.dump(results,open('unet_mdf_results.np','wb'))
+
+
+
+model = unet_res(input_shape = (512,512,1))
+model_checkpoint = ModelCheckpoint('unet_res_20_mdf.hdf5', monitor='loss', save_best_only=True)
+model.fit_generator(train_data,steps_per_epoch=1000,epochs=20,verbose=2,callbacks=[model_checkpoint])
+
+model.load_weights('unet_res_20_mdf.hdf5')    
+results = model.predict_generator(test_data,49,verbose=1)
+pickle.dump(results,open('unet_res_20_mdf_results.np','wb'))
 
 
 
