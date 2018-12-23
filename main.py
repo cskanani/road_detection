@@ -159,6 +159,7 @@ def train_generator(batch_size,train_dir,img_dir,msk_dir,target_size=(512, 512),
         target_size (tuple):taget size of the images
         seed (int): optional random seed for shuffling and transformations, should be kept same for lable and image
         md (str): 1d or 3d, if used 3d two additional filters are appended to gray scale image, default is 3d
+        
     Return:
         (img,mask) : yields a tuple containing image(numpy array) and label(numpy array)
     """
