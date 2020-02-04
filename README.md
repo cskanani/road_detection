@@ -1,2 +1,2 @@
 # road_detection
-An approach to detect roads from stellite images
+A U-Net based approach to detect roads from stellite images
