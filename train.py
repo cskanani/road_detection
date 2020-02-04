@@ -147,9 +147,9 @@ model_checkpoint = ModelCheckpoint(
 )
 model.fit_generator(
     train_data,
-    steps_per_epoch=1000,
+    steps_per_epoch=10000,
     validation_data=validation_data,
-    validation_steps=200,
-    epochs=10,
+    validation_steps=2000,
+    epochs=45,
     callbacks=[model_checkpoint]
 )
